@@ -1,0 +1,73 @@
+name: 每日宏观经济日报
+
+on:
+  schedule:
+    # 每天 UTC 00:30 = 北京时间 08:30 运行
+    # （周末美股闭市，但 FRED/akshare 数据仍可正常拉取，所以全周运行）
+    - cron: '30 0 * * *'
+  workflow_dispatch:   # 也支持在 GitHub 网页手动触发
+
+# 给 Action 写权限：commit 快照 + 推送 gh-pages
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  daily-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 拉取仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 运行仪表盘 + 推送微信
+        env:
+          FRED_API_KEY:    ${{ secrets.FRED_API_KEY }}
+          SERVERCHAN_KEY:  ${{ secrets.SERVERCHAN_KEY }}
+          WECOM_WEBHOOK:   ${{ secrets.WECOM_WEBHOOK }}
+          CI: 'true'
+        run: |
+          mkdir -p output
+          # 计算 GitHub Pages 公开URL
+          PUBLIC_URL="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/dashboard.html"
+          python econ_dashboard.py \
+            --ci-mode \
+            --output-dir output \
+            --summary-md output/summary.md \
+            --public-url "$PUBLIC_URL" \
+            --push-wechat
+
+      - name: 提交快照（用于"较上次运行"对比）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f .dashboard_snapshot.json ]; then
+            git add .dashboard_snapshot.json
+            if ! git diff --staged --quiet; then
+              git commit -m "📸 snapshot: $(date -u +%Y-%m-%d)"
+              git push
+            else
+              echo "快照无变化，跳过提交"
+            fi
+          fi
+
+      - name: 部署 HTML 到 GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
+          force_orphan: false
+          commit_message: '🌐 update dashboard'

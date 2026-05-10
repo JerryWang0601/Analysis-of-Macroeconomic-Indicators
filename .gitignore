@@ -1,0 +1,26 @@
+# 本地配置（含 API Key），不要上传
+.env_dashboard
+
+# 本地生成的报告文件
+dashboard_*.html
+dashboard.log
+preview_*.html
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+.Python
+.pytest_cache/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 注意: .dashboard_snapshot.json 故意不忽略，
+# 因为需要 commit 回仓库以便"较上次运行"对比生效
